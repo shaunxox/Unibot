@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory # ADDED send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 
@@ -10,7 +10,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///college_chatbot.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-# Database Models
+# Database Models (rest of your models are here)
 class Timetable(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     day = db.Column(db.String(20), nullable=False)
@@ -44,7 +44,24 @@ COLLEGE_LINKS = {
     "canteen": "https://college.edu/canteen"
 }
 
-# Simple chatbot logic - keyword matching
+# ----------------------------------------------------------------------
+# NEW ROUTES TO SERVE HTML FILES (404 FIX)
+# ----------------------------------------------------------------------
+# NOTE: app.send_static_file assumes your HTML files are in a 'static' folder 
+# or the root folder, which is the simplest setup for deployment.
+
+# Route to serve the main chatbot page (fixes the 404 error)
+@app.route('/')
+def index():
+    return app.send_static_file('index.html')
+
+# Route to serve the login page
+@app.route('/login')
+def login_page():
+    return app.send_static_file('login.html')
+# ----------------------------------------------------------------------
+
+# Simple chatbot logic - keyword matching (rest of your logic remains here)
 def get_chatbot_response(message):
     message = message.lower().strip()
 
@@ -76,6 +93,7 @@ def get_chatbot_response(message):
             dept = 'Mathematics'
         elif 'physics' in message:
             dept = 'Physics'
+            # ... (rest of department logic)
         elif 'chemistry' in message:
             dept = 'Chemistry'
         elif 'cs' in message or 'computer' in message:
@@ -119,6 +137,7 @@ def get_chatbot_response(message):
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
+    # ... (rest of your API and GET routes remain here)
     try:
         data = request.json
         user_message = data.get('message', '')
@@ -149,6 +168,7 @@ def get_staff():
 def get_events():
     events = CollegeEvent.query.all()
     return jsonify([{"title": e.title, "date": e.date, "description": e.description} for e in events])
+
 
 def init_db():
     with app.app_context():
@@ -198,7 +218,7 @@ def init_db():
         print("Database initialized with sample data!")
 
 if __name__ == '__main__':
-    #init_db()
+    # init_db() # Commented out for server deployment
     app.run(debug=True, port=5000)
 
 

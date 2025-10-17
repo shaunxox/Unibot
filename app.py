@@ -198,7 +198,7 @@ def init_db():
         print("Database initialized with sample data!")
 
 if __name__ == '__main__':
-    init_db()
+    #init_db()
     app.run(debug=True, port=5000)
 
 

@@ -1,8 +1,9 @@
-from flask import Flask, request, jsonify, send_from_directory # ADDED send_from_directory
+from flask import Flask, request, jsonify, send_from_directory # send_from_directory needed for HTML files
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 
-app = Flask(__name__)
+# CRUCIAL FIX: Set static_folder to 'static' so Flask knows where your HTML files are
+app = Flask(__name__, static_url_path='/', static_folder='static') 
 CORS(app)
 
 # Database config
@@ -45,20 +46,17 @@ COLLEGE_LINKS = {
 }
 
 # ----------------------------------------------------------------------
-# NEW ROUTES TO SERVE HTML FILES (404 FIX)
+# NEW ROUTES TO SERVE HTML FILES (LOGICALLY CORRECTED)
 # ----------------------------------------------------------------------
-# NOTE: app.send_static_file assumes your HTML files are in a 'static' folder 
-# or the root folder, which is the simplest setup for deployment.
-
-# Route to serve the main chatbot page (fixes the 404 error)
+# FIX 1: Root URL (/) now goes to the Login Page
 @app.route('/')
-def index():
-    return app.send_static_file('index.html')
-
-# Route to serve the login page
-@app.route('/login')
 def login_page():
     return app.send_static_file('login.html')
+
+# FIX 2: The Chat interface is now served at /chat
+@app.route('/chat')
+def index():
+    return app.send_static_file('index.html')
 # ----------------------------------------------------------------------
 
 # Simple chatbot logic - keyword matching (rest of your logic remains here)

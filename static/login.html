@@ -105,8 +105,8 @@
       localStorage.setItem('usn', usn);
       localStorage.setItem('email', email);
 
-      // Redirect to chatbot page
-      window.location.href = 'index.html';
+      // REDIRECT FIX: Changed from 'index.html' to the Flask route '/chat'
+      window.location.href = '/chat'; 
     });
   </script>
 </body>

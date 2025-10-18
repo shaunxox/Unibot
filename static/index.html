@@ -298,7 +298,7 @@
             <div class="welcome-message">
                 <h2>Welcome! 👋</h2> 
                 <p>I'm UniBot, your college assistant chatbot. I can help you with timetables, exam schedules, staff contacts, college links, and events.</p>
-                <p style="margin-top: 10px; font-size: 13px; color: #999;">Ask a specific question (e.g., 'timetable for Monday') or use the buttons above!</p>
+                <p style="margin-top: 10px; font-size: 13px; color: #999;">Click on the quick buttons above or type your question below!</p>
             </div>
         </div>
 
@@ -320,13 +320,13 @@
     </div>
 
     <script>
-        // FIX 1: API URL is relative for deployed environment
+        // FIX 1: Change API URL to relative path for deployed environment
         const API_URL = '/api/chat'; 
         const chatMessages = document.getElementById('chatMessages');
         const userInput = document.getElementById('userInput');
         const typingIndicator = document.getElementById('typingIndicator');
 
-        // FIX 2: Check login status and personalize the welcome message
+        // FIX 2: Function to check login status and set the welcome message
         function checkLogin() {
             const userName = localStorage.getItem('name');
             
@@ -376,20 +376,13 @@
             chatMessages.appendChild(typingIndicator);
             scrollToBottom();
 
-            // CRUCIAL FIX: Get user name and send it in the request body
-            const userName = localStorage.getItem('name'); 
-
             try {
                 const response = await fetch(API_URL, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    // FIX 3: Sending both message and user's name
-                    body: JSON.stringify({ 
-                        message: message,
-                        name: userName 
-                    })
+                    body: JSON.stringify({ message: message })
                 });
 
                 const data = await response.json();

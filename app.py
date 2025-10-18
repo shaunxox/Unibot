@@ -1,28 +1,9 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory # send_from_directory needed for HTML files
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
-# --- NLTK IMPORTS ---
-import nltk
-from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize
-# --------------------
-
-# --- NLTK Data Download (Runs ONCE when app loads) ---
-def download_nltk_resources():
-    # This downloads NLTK data if it's missing (required for tokenizers and stopwords)
-    try:
-        nltk.data.find('tokenizers/punkt')
-        nltk.data.find('corpora/stopwords')
-    except:
-        print("Downloading NLTK data...")
-        nltk.download('punkt', quiet=True)
-        nltk.download('stopwords', quiet=True)
-        print("NLTK data downloaded.")
-
-download_nltk_resources() 
-# ----------------------------------------------------
 
 # CRUCIAL FIX: Set static_folder to 'static' so Flask knows where your HTML files are
+# NOTE: Removed static_url_path='/' from the original code as it conflicts locally.
 app = Flask(__name__, static_folder='static') 
 CORS(app)
 
@@ -31,7 +12,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///college_chatbot.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-# Database Models (omitted for brevity, they remain unchanged)
+# Database Models 
 class Timetable(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     day = db.Column(db.String(20), nullable=False)
@@ -56,7 +37,7 @@ class CollegeEvent(db.Model):
     date = db.Column(db.String(50), nullable=False)
     description = db.Column(db.Text, nullable=False)
 
-# Static links (omitted for brevity, they remain unchanged)
+# Static links
 COLLEGE_LINKS = {
     "library": "https://college.edu/library",
     "portal": "https://college.edu/portal",
@@ -77,21 +58,10 @@ def index():
     return app.send_static_file('index.html')
 # ----------------------------------------------------------------------
 
-# Simple chatbot logic - keyword matching (REVISED WITH NLTK LOGIC)
-def get_chatbot_response(message, user_name): # UPDATED SIGNATURE
+# Simple chatbot logic - keyword matching (Original Logic)
+def get_chatbot_response(message): # Note: Removed user_name parameter
     message = message.lower().strip()
-    
-    # --- 1. HANDLE DIRECT/SIMPLE GREETINGS ---
-    simple_greetings = ['hi', 'hello', 'hey', 'hola', 'hi unibot', 'hello unibot', 'hey unibot']
-    if message in simple_greetings:
-        return "👋 Hello! I'm your college assistant. What can I help you with today?"
-    
-    # --- 2. NEW LOGIC: WHAT IS MY NAME? ---
-    if 'what is my name' in message or 'my name is what' in message:
-        # Returns the full name stored in local storage
-        return f"Your name is **{user_name}**. How can I help you, {user_name.split(' ')[0].capitalize()}?" 
 
-    # --- 3. INTENT MATCHING ---
     if 'timetable' in message or 'schedule' in message or 'class' in message:
         days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
         for day in days:
@@ -113,7 +83,7 @@ def get_chatbot_response(message, user_name): # UPDATED SIGNATURE
                 response += f"• {e.subject} - {e.exam_date}\n"
             return response
         return "No upcoming exams scheduled"
-        
+
     if 'staff' in message or 'contact' in message or 'professor' in message or 'teacher' in message:
         dept = None
         if 'math' in message:
@@ -150,11 +120,9 @@ def get_chatbot_response(message, user_name): # UPDATED SIGNATURE
             return response
         return "No upcoming events found."
 
-    # --- 4. FALLBACK FOR COMPLEX GREETINGS ---
     if any(word in message for word in ['hi', 'hello', 'hey', 'hola']):
-        return "👋 Hello! I heard you say hello. Please ask a direct question like 'timetable for Monday' or 'show exams'."
-        
-    # --- 5. DEFAULT RESPONSE ---
+        return "👋 Hello! I'm your college assistant. I can help you with:\n• Timetable\n• Exam schedules\n• Staff contacts\n• College website links\n• Events\n\nWhat would you like to know?"
+
     return ("I can help you with:\n"
             "• Timetable (try: 'timetable for Monday')\n"
             "• Exam schedules (try: 'show exams')\n"
@@ -165,16 +133,14 @@ def get_chatbot_response(message, user_name): # UPDATED SIGNATURE
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
+    # Note: Removed user_name retrieval logic here as per your request
     try:
         data = request.json
         user_message = data.get('message', '')
-        user_name = data.get('name', 'Student') # GET NAME FROM FRONTEND
-        
         if not user_message:
             return jsonify({"error": "Message is required"}), 400
-            
-        # PASS THE NAME TO THE CHATBOT FUNCTION
-        response = get_chatbot_response(user_message, user_name) 
+        # Call get_chatbot_response without user_name argument
+        response = get_chatbot_response(user_message) 
         return jsonify({"response": response}), 200
     except Exception as e:
         return jsonify({"error": "Something went wrong"}), 500
@@ -203,22 +169,56 @@ def get_events():
 
 def init_db():
     with app.app_context():
-        # ... (Database initialization code remains unchanged)
+        # DROP ALL TABLES before creating to reset DB with fresh data
         db.drop_all()
         db.create_all()
 
-        # Insert sample data (Timetable, Exams, Staff, Events)
-        # ... (omitted for brevity, but this is where your 2025 dates are inserted)
-        
+        # Insert Timetable data
+        if Timetable.query.count() == 0:
+            db.session.add_all([
+                Timetable(day="Monday", subject="Mathematics", time="9:00 AM - 10:00 AM"),
+                Timetable(day="Monday", subject="Physics", time="10:00 AM - 11:00 AM"),
+                Timetable(day="Monday", subject="Chemistry", time="11:00 AM - 12:00 PM"),
+                Timetable(day="Tuesday", subject="Computer Science", time="9:00 AM - 10:00 AM"),
+                Timetable(day="Tuesday", subject="Mathematics", time="10:00 AM - 11:00 AM"),
+                Timetable(day="Wednesday", subject="Physics Lab", time="2:00 PM - 5:00 PM"),
+            ])
+
+        # Insert ExamSchedule with 2025 dates
+        if ExamSchedule.query.count() == 0:
+            db.session.add_all([
+                ExamSchedule(subject="Mathematics", exam_date="2025-11-20"),
+                ExamSchedule(subject="Physics", exam_date="2025-11-22"),
+                ExamSchedule(subject="Chemistry", exam_date="2025-11-25"),
+                ExamSchedule(subject="Computer Science", exam_date="2025-11-27"),
+            ])
+
+        # Insert StaffContact data
+        if StaffContact.query.count() == 0:
+            db.session.add_all([
+                StaffContact(name="Dr. Rajesh Kumar", department="Mathematics", email="rajesh.kumar@college.edu", phone="9876543210"),
+                StaffContact(name="Prof. Priya Sharma", department="Physics", email="priya.sharma@college.edu", phone="9876543211"),
+                StaffContact(name="Dr. Anil Verma", department="Chemistry", email="anil.verma@college.edu", phone="9876543212"),
+                StaffContact(name="Prof. Sneha Reddy", department="Computer Science", email="sneha.reddy@college.edu", phone="9876543213"),
+            ])
+
+        # Insert CollegeEvent data with 2025-2026 dates
+        if CollegeEvent.query.count() == 0:
+            db.session.add_all([
+                CollegeEvent(title="Tech Fest 2025", date="November 15-17, 2025", description="A 3-day tech fest with coding competitions, hackathons, and technical workshops."),
+                CollegeEvent(title="Cultural Night", date="December 5, 2025", description="Evening of music, dance, and drama performances by students."),
+                CollegeEvent(title="Science Exhibition", date="January 20, 2026", description="Projects from all departments will be showcased and judged."),
+                CollegeEvent(title="Sports Day", date="February 10, 2026", description="Inter-department sports competitions and athletics events."),
+            ])
+
         db.session.commit()
         print("Database initialized with sample data!")
 
 if __name__ == '__main__':
     # --- LOCAL FIX FOR "CANNOT GET /CHAT" ERROR ---
-    # This ensures local testing works correctly. 
-    # It must NOT be commented out for local testing.
+    # This ensures local testing works by setting the correct path for static files.
+    # Note: This line should NOT be committed to GitHub for Render deployment.
     with app.app_context():
-        # Ensure static folder is recognized for local routes:
         app.static_url_path = '/static'
     # -----------------------------------------------
     

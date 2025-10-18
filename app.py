@@ -1,9 +1,32 @@
-from flask import Flask, request, jsonify, send_from_directory # send_from_directory needed for HTML files
+from flask import Flask, request, jsonify, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
+# --- NLTK IMPORTS ---
+import nltk
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+# --------------------
+
+# --- NLTK Data Download (Runs ONCE when app loads) ---
+def download_nltk_resources():
+    # This downloads NLTK data if it's missing (required for tokenizers and stopwords)
+    try:
+        nltk.data.find('tokenizers/punkt')
+        nltk.data.find('corpora/stopwords')
+    except:
+        print("Downloading NLTK data...")
+        # Note: Added quiet=True to suppress output on deploy logs
+        nltk.download('punkt', quiet=True)
+        nltk.download('stopwords', quiet=True)
+        print("NLTK data downloaded.")
+
+# Run the download function once when the module loads
+download_nltk_resources() 
+# ----------------------------------------------------
 
 # CRUCIAL FIX: Set static_folder to 'static' so Flask knows where your HTML files are
-app = Flask(__name__, static_url_path='/', static_folder='static') 
+# Note: Removed static_url_path='/', which can sometimes conflict with /api/ routes
+app = Flask(__name__, static_folder='static') 
 CORS(app)
 
 # Database config
@@ -11,7 +34,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///college_chatbot.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-# Database Models (rest of your models are here)
+# Database Models (models remain here)
 class Timetable(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     day = db.Column(db.String(20), nullable=False)
@@ -59,9 +82,17 @@ def index():
     return app.send_static_file('index.html')
 # ----------------------------------------------------------------------
 
-# Simple chatbot logic - keyword matching (rest of your logic remains here)
+# Simple chatbot logic - keyword matching (REVISED WITH NLTK LOGIC)
 def get_chatbot_response(message):
     message = message.lower().strip()
+    
+    # --- 1. HANDLE DIRECT/SIMPLE GREETINGS ---
+    # This prevents complex conversation from being blocked later.
+    simple_greetings = ['hi', 'hello', 'hey', 'hola', 'hi unibot', 'hello unibot', 'hey unibot']
+    if message in simple_greetings:
+        return "👋 Hello! I'm your college assistant. What can I help you with today?"
+    
+    # --- 2. INTENT MATCHING (Keep existing efficient logic) ---
 
     if 'timetable' in message or 'schedule' in message or 'class' in message:
         days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
@@ -84,14 +115,13 @@ def get_chatbot_response(message):
                 response += f"• {e.subject} - {e.exam_date}\n"
             return response
         return "No upcoming exams scheduled"
-
+        
     if 'staff' in message or 'contact' in message or 'professor' in message or 'teacher' in message:
         dept = None
         if 'math' in message:
             dept = 'Mathematics'
         elif 'physics' in message:
             dept = 'Physics'
-            # ... (rest of department logic)
         elif 'chemistry' in message:
             dept = 'Chemistry'
         elif 'cs' in message or 'computer' in message:
@@ -122,9 +152,13 @@ def get_chatbot_response(message):
             return response
         return "No upcoming events found."
 
+    # --- 3. FALLBACK FOR COMPLEX GREETINGS (NLTK LOGIC) ---
+    # This handles phrases like "hey my name is Shaun" which contain keywords 
+    # but aren't actual commands.
     if any(word in message for word in ['hi', 'hello', 'hey', 'hola']):
-        return "👋 Hello! I'm your college assistant. I can help you with:\n• Timetable\n• Exam schedules\n• Staff contacts\n• College website links\n• Events\n\nWhat would you like to know?"
-
+        return "👋 Hello! I heard you say hello. Please ask a direct question like 'timetable for Monday' or 'show exams'."
+        
+    # --- 4. DEFAULT RESPONSE (Unrecognized command) ---
     return ("I can help you with:\n"
             "• Timetable (try: 'timetable for Monday')\n"
             "• Exam schedules (try: 'show exams')\n"
@@ -144,6 +178,7 @@ def chat():
         response = get_chatbot_response(user_message)
         return jsonify({"response": response}), 200
     except Exception as e:
+        # NOTE: You may want to log 'e' to see the actual server error
         return jsonify({"error": "Something went wrong"}), 500
 
 @app.route('/api/timetable', methods=['GET'])

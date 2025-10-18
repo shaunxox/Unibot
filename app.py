@@ -15,7 +15,6 @@ def download_nltk_resources():
         nltk.data.find('corpora/stopwords')
     except:
         print("Downloading NLTK data...")
-        # Note: Added quiet=True to suppress output on deploy logs
         nltk.download('punkt', quiet=True)
         nltk.download('stopwords', quiet=True)
         print("NLTK data downloaded.")
@@ -25,7 +24,6 @@ download_nltk_resources()
 # ----------------------------------------------------
 
 # CRUCIAL FIX: Set static_folder to 'static' so Flask knows where your HTML files are
-# Note: Removed static_url_path='/', which can sometimes conflict with /api/ routes
 app = Flask(__name__, static_folder='static') 
 CORS(app)
 
@@ -34,7 +32,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///college_chatbot.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-# Database Models (models remain here)
+# Database Models 
 class Timetable(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     day = db.Column(db.String(20), nullable=False)
@@ -69,31 +67,33 @@ COLLEGE_LINKS = {
 }
 
 # ----------------------------------------------------------------------
-# NEW ROUTES TO SERVE HTML FILES (LOGICALLY CORRECTED)
+# ROUTES TO SERVE HTML FILES (LOGICALLY CORRECTED)
 # ----------------------------------------------------------------------
-# FIX 1: Root URL (/) now goes to the Login Page
 @app.route('/')
 def login_page():
     return app.send_static_file('login.html')
 
-# FIX 2: The Chat interface is now served at /chat
 @app.route('/chat')
 def index():
     return app.send_static_file('index.html')
 # ----------------------------------------------------------------------
 
 # Simple chatbot logic - keyword matching (REVISED WITH NLTK LOGIC)
-def get_chatbot_response(message):
+def get_chatbot_response(message, user_name): # UPDATED SIGNATURE
     message = message.lower().strip()
     
     # --- 1. HANDLE DIRECT/SIMPLE GREETINGS ---
-    # This prevents complex conversation from being blocked later.
     simple_greetings = ['hi', 'hello', 'hey', 'hola', 'hi unibot', 'hello unibot', 'hey unibot']
     if message in simple_greetings:
         return "👋 Hello! I'm your college assistant. What can I help you with today?"
     
-    # --- 2. INTENT MATCHING (Keep existing efficient logic) ---
+    # --- 2. NEW LOGIC: WHAT IS MY NAME? ---
+    if 'what is my name' in message or 'my name is what' in message:
+        # Format the name (capitalize the first part)
+        formatted_name = user_name.split(' ')[0].capitalize()
+        return f"Your name is **{user_name}**. How can I help you, {formatted_name}?" # Returns full name
 
+    # --- 3. INTENT MATCHING (Keep existing efficient logic) ---
     if 'timetable' in message or 'schedule' in message or 'class' in message:
         days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
         for day in days:
@@ -152,13 +152,11 @@ def get_chatbot_response(message):
             return response
         return "No upcoming events found."
 
-    # --- 3. FALLBACK FOR COMPLEX GREETINGS (NLTK LOGIC) ---
-    # This handles phrases like "hey my name is Shaun" which contain keywords 
-    # but aren't actual commands.
+    # --- 4. FALLBACK FOR COMPLEX GREETINGS (NLTK LOGIC) ---
     if any(word in message for word in ['hi', 'hello', 'hey', 'hola']):
         return "👋 Hello! I heard you say hello. Please ask a direct question like 'timetable for Monday' or 'show exams'."
         
-    # --- 4. DEFAULT RESPONSE (Unrecognized command) ---
+    # --- 5. DEFAULT RESPONSE (Unrecognized command) ---
     return ("I can help you with:\n"
             "• Timetable (try: 'timetable for Monday')\n"
             "• Exam schedules (try: 'show exams')\n"
@@ -169,16 +167,20 @@ def get_chatbot_response(message):
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
-    # ... (rest of your API and GET routes remain here)
+    # UPDATED: This route now handles passing the name to the response logic
     try:
         data = request.json
         user_message = data.get('message', '')
+        user_name = data.get('name', 'Student') # GET NAME FROM FRONTEND
+        
         if not user_message:
             return jsonify({"error": "Message is required"}), 400
-        response = get_chatbot_response(user_message)
+            
+        # PASS THE NAME TO THE CHATBOT FUNCTION
+        response = get_chatbot_response(user_message, user_name) 
         return jsonify({"response": response}), 200
     except Exception as e:
-        # NOTE: You may want to log 'e' to see the actual server error
+        # NOTE: Logging 'e' would be helpful here for debugging server errors
         return jsonify({"error": "Something went wrong"}), 500
 
 @app.route('/api/timetable', methods=['GET'])

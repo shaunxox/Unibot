@@ -296,9 +296,9 @@
 
         <div class="chat-messages" id="chatMessages">
             <div class="welcome-message">
-                <h2>Welcome! 👋</h2>
+                <h2>Welcome! 👋</h2> 
                 <p>I'm UniBot, your college assistant chatbot. I can help you with timetables, exam schedules, staff contacts, college links, and events.</p>
-                <p style="margin-top: 10px; font-size: 13px; color: #999;">Click on the quick buttons above or type your question below!</p>
+                <p style="margin-top: 10px; font-size: 13px; color: #999;">Ask a specific question (e.g., 'timetable for Monday') or use the buttons above!</p>
             </div>
         </div>
 
@@ -320,10 +320,30 @@
     </div>
 
     <script>
-        const API_URL = 'http://127.0.0.1:5000/api/chat';
+        // FIX 1: API URL is relative for deployed environment
+        const API_URL = '/api/chat'; 
         const chatMessages = document.getElementById('chatMessages');
         const userInput = document.getElementById('userInput');
         const typingIndicator = document.getElementById('typingIndicator');
+
+        // FIX 2: Check login status and personalize the welcome message
+        function checkLogin() {
+            const userName = localStorage.getItem('name');
+            
+            // If no user name is found, redirect to the login page (root URL)
+            if (!userName) {
+                window.location.href = '/'; 
+                return;
+            }
+
+            const welcomeHeader = document.querySelector('.welcome-message h2');
+            if (welcomeHeader) {
+                // Personalize the welcome message using the user's first name
+                welcomeHeader.textContent = `Welcome, ${userName.split(' ')[0]}! 👋`; 
+            }
+            
+            userInput.focus();
+        }
 
         function handleKeyPress(event) {
             if (event.key === 'Enter') {
@@ -356,13 +376,20 @@
             chatMessages.appendChild(typingIndicator);
             scrollToBottom();
 
+            // CRUCIAL FIX: Get user name and send it in the request body
+            const userName = localStorage.getItem('name'); 
+
             try {
                 const response = await fetch(API_URL, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ message: message })
+                    // FIX 3: Sending both message and user's name
+                    body: JSON.stringify({ 
+                        message: message,
+                        name: userName 
+                    })
                 });
 
                 const data = await response.json();
@@ -405,9 +432,9 @@
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
 
-        // Focus input on load
+        // Call checkLogin on page load (replaces the old simple focus function)
         window.onload = () => {
-            userInput.focus();
+            checkLogin();
         };
     </script>
 </body>
